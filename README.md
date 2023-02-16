@@ -1,3 +1,5 @@
+[ Stefano Pigozzi | Tema Graph Analytics | Big Data Analytics | A.A. 2022/2023 | Unimore ]
+
 # WIP
 
 > ### Graph analytics
