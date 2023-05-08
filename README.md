@@ -36,3 +36,12 @@
 > > È un'opzione prevista dalla consegna, oppure non è consentita?
 >
 > > Si è consentita ma la dimensione del grafo deve essere sufficiente per fare Graph Analytics. 
+
+## Sinossi
+
+Si sono realizzate varie ricerche di Graph Analytics sul database a grafo dell'indice [Crates.io], realizzato per il progetto a tema Neo4J, determinando le crate più importanti all'ecosistema attraverso gli algoritmi di *Degree Centrality*, *Betweenness Centrality*, e *PageRank*, e ricercando cluster di tag per migliorare la classificazione delle crate nell'indice attraverso gli algoritmi di *Louvain*, *Label Propagation*, e *Leiden*.
+
+
+<!-- Collegamenti -->
+
+[Crates.io]: https://crates.io/
