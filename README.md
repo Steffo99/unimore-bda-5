@@ -228,7 +228,7 @@ LIMIT 10
 
 ### 1️⃣ PageRank
 
-Per ottenere una misura di importanza più elaborata, si è scelto di utilizzare *PageRank*, algoritmo iterativo che dà maggiore rilevanza alle crate con pochi dipendenze e molti dipendenti.
+Per ottenere una misura di importanza più elaborata, si è scelto di utilizzare *PageRank*, algoritmo iterativo che dà maggiore rilevanza alle crate con pochi dipendenze e molti dipendenti, utilizzando la funzione [`gds.pageRank`].
 
 Ancora, prima di eseguire l'algoritmo [si stimano] le risorse richieste:
 
@@ -288,3 +288,4 @@ LIMIT 10
 [`gds.graph.project`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project/
 [`gds.degree`]: https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/
 [si stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
+[`gds.pageRank`]: https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/
