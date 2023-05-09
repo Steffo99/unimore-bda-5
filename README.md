@@ -41,7 +41,7 @@
 
 ## Sinossi
 
-Si sono effettuate ricerche di Graph Analytics sul database a grafo dell'indice [Crates.io], realizzato per il progetto a tema Neo4J, determinando le crate più importanti all'ecosistema attraverso gli algoritmi di *Degree Centrality*, *Betweenness Centrality*, e *PageRank*, e ricercando cluster di tag per migliorare la classificazione delle crate nell'indice attraverso gli algoritmi di *Louvain*, *Label Propagation*, e *Leiden*.
+Si sono effettuate ricerche di Graph Analytics sul database a grafo dell'indice [Crates.io], realizzato per il progetto a tema Neo4J, determinando le crate più importanti all'ecosistema attraverso gli algoritmi di *Degree Centrality*, *Betweenness Centrality*, e *PageRank*, e ricercando community di tag per migliorare la classificazione delle crate nell'indice attraverso gli algoritmi di *Louvain*, *Label Propagation*, e *Leiden*.
 
 ## Introduzione
 
@@ -430,7 +430,7 @@ RETURN k.name
 ["max32660", "cortex-a", "jtag", "bitbang", "msp432", "capacitive", "stm32l5xx", "stm32f072", ...]
 ```
 
-Si osserva un cluster molto ben definito di label relativi all'elettronica e alla programmazione embedded, che potrebbero individuare una categoria "Elettronica".
+Si osserva una community molto ben definita di label relativi all'elettronica e alla programmazione embedded, che potrebbero individuare una categoria "Elettronica".
 
 
 <!-- Collegamenti -->
