@@ -213,16 +213,16 @@ LIMIT 10
 
 | name          |   score | description                                                                                                        |
 |---------------|--------:|--------------------------------------------------------------------------------------------------------------------|
-| "serde"       | 24612.0 | "A generic serialization/deserialization framework"                                                                |
-| "serde_json"  | 16365.0 | "A JSON serialization file format"                                                                                 |
-| "log"         | 12134.0 | "A lightweight logging facade for Rust"                                                                            |
-| "tokio"       | 11298.0 | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                      |
-| "clap"        | 10066.0 | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                       |
-| "rand"        |  9993.0 | "Random number generators and other randomness functionality."                                                     |
-| "thiserror"   |  8615.0 | "derive(Error)"                                                                                                    |
-| "anyhow"      |  8130.0 | "Flexible concrete Error type built on std::error::Error"                                                          |
-| "futures"     |  7398.0 | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces." |
-| "lazy_static" |  7118.0 | "A macro for declaring lazily evaluated statics in Rust."                                                          |
+| [`serde`](https://crates.io/crates/serde)       | 24612.0 | "A generic serialization/deserialization framework"                                                                |
+| [`serde_json`](https://crates.io/crates/serde_json)  | 16365.0 | "A JSON serialization file format"                                                                                 |
+| [`log`](https://crates.io/crates/log)         | 12134.0 | "A lightweight logging facade for Rust"                                                                            |
+| [`tokio`](https://crates.io/crates/tokio)       | 11298.0 | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                      |
+| [`clap`](https://crates.io/crates/clap)        | 10066.0 | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                       |
+| [`rand`](https://crates.io/crates/rand)        |  9993.0 | "Random number generators and other randomness functionality."                                                     |
+| [`thiserror`](https://crates.io/crates/thiserror)   |  8615.0 | "derive(Error)"                                                                                                    |
+| [`anyhow`](https://crates.io/crates/anyhow)      |  8130.0 | "Flexible concrete Error type built on std::error::Error"                                                          |
+| [`futures`](https://crates.io/crates/futures)     |  7398.0 | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces." |
+| [`lazy_static`](https://crates.io/crates/lazy_static) |  7118.0 | "A macro for declaring lazily evaluated statics in Rust."                                                          |
 
 
 <!-- Collegamenti -->
