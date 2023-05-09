@@ -353,7 +353,7 @@ CALL gds.labelPropagation.write.estimate(
 
 Si osserva che la quantità di memoria richiesta per l'esecuzione di questo algoritmo è variabile, ma comunque ben contenuta all'interno delle capacità di elaborazione di qualsiasi computer moderno.
 
-Si procede con l'esecuzione, questa volta in modalità `write`, in modo da poter effettuare in seguito query sul grafo per poter filtrare le keyword in base al label a loro assegnato, salvato nella proprietà `communityLabelPropagation`:
+Si procede con l'esecuzione, questa volta in modalità *Write*, in modo da poter effettuare in seguito query sul grafo per poter filtrare le keyword in base al label a loro assegnato, salvato nella proprietà `communityLabelPropagation`:
 
 ```cypher
 CALL gds.labelPropagation.write(
@@ -434,7 +434,7 @@ Si osserva una community molto ben definita di label relativi all'elettronica e 
 
 ### 2️⃣ Louvain
 
-Si effettua un approccio diverso alla community detection, ovvero quello di usare l'*algoritmo di Louvain* per identificare i raggruppamenti che massimizzano la modularity del grafo.
+Si effettua un approccio diverso alla community detection, ovvero quello di usare l'*algoritmo Louvain* ([`gds.louvain`]) per identificare i raggruppamenti che massimizzano la modularity del grafo.
 
 Si inizia stimando le risorse necessarie all'esecuzione dell'algoritmo:
 
@@ -456,7 +456,7 @@ CALL gds.louvain.write.estimate(
 |----------:|------------------:|---------:|---------:|---------------:|
 | 24042 | 1075328 | 1546985 | 26744496 | "[1510 KiB ... 25 MiB]" |
 
-La quantità di memoria massima utilizzabile continua a essere all'interno le risorse disponibili a qualsiasi calcolatore moderno, pertanto si procede all'esecuzione:
+La quantità di memoria massima utilizzabile continua a essere all'interno le risorse disponibili a qualsiasi calcolatore moderno, pertanto si procede all'esecuzione in modalità *Write*:
 
 ```cypher
 CALL gds.louvain.write(
@@ -481,9 +481,9 @@ CALL gds.louvain.write(
 |---------------------|---------------|-------------|----------------------|-----------------------|----------------|-----------|--------------------|-------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
 | 0                   | 6234          | 271         | 26                   | 24042                 | 1322           | 3         | 0.5470496088005096 | [0.434767324919813, 0.5403286363404538, 0.5470496088005096] | {p99: 688, min: 1, max: 2280, mean: 18.18608169440242, p90: 3, p50: 1, p999: 1994, p95: 4, p75: 1} |
 
-Si osserva come l'*algoritmo di Louvain* abbia creato poco più della metà delle community individuate dalla *Label Propagation*.
+Si osserva come l'*algoritmo Louvain* abbia individuato poco più della metà delle community individuate dalla *Label Propagation*.
 
-##### Campionamento delle community
+#### Campionamento delle community
 
 Si effettuano alcuni campionamenti per verificare il contenuto delle community identificate.
 
@@ -509,7 +509,7 @@ RETURN k.name
 ["gameboy-advance", "intel-8080", "sm83", "textureatlas", "rocketleaguestats", "minesweeper", "rpg-maker", "ducktyping", ...]
 ```
 
-Si osserva che questo campione contiene numerose keyword relative a videogiochi, e in particolare a architetture di calcolo e strutture dati utilizzate per essi: si identificano pertanto due categorie, "Videogames :: Emulation" e "Videogames :: Data structures".
+Si osserva che questo campione contiene numerose keyword relative a videogiochi, e in particolare a architetture di calcolo, strutture dati, e algoritmi di grafica 2D e 3D utilizzati in essi: si identificano pertanto tre categorie, "Videogames :: Emulation", "Videogames :: Data structures" e "Videogames :: Graphics".
 
 Si campiona la seconda community restituita:
 
@@ -523,6 +523,101 @@ RETURN k.name
 ```
 
 Si osserva che questo campione è quasi interamente relativo allo sviluppo ed esecuzione di test su codice Rust: si identifica pertanto una categoria "Testing".
+
+### 2️⃣ Leiden
+
+Si prova a ridurre il rumore presente nelle community individuate dall'*algoritmo Louvain* attraverso l'utilizzo dell'*algoritmo Leiden* ([`gds.beta.leiden`]), che periodicamente separa le community individuate in community più piccole ma meglio connesse.
+
+Si stimano ancora una volta le risorse necessarie:
+
+```cypher
+CALL gds.beta.leiden.write.estimate(
+	"kwds",
+	{
+		writeProperty: "communityLeiden"
+	}
+) YIELD
+	nodeCount, 
+	relationshipCount, 
+	bytesMin, 
+	bytesMax, 
+	requiredMemory
+```
+
+| nodeCount | relationshipCount | bytesMin | bytesMax | requiredMemory |
+|----------:|------------------:|---------:|---------:|---------------:|
+| 24042 | 1075328 | 6913840 | 29249392 | "[6751 KiB ... 27 MiB]" |
+
+Benchè rientrino nettamente nella capacità di memoria di un computer moderno, si osserva come l'*algoritmo Leiden* richieda un po' più di memoria rispetto all'*algoritmo Louvain*.
+
+Si procede all'esecuzione, ancora una volta in modalità *Write*:
+
+```cypher
+CALL gds.beta.leiden.write(
+	"kwds",
+	{
+		writeProperty: "communityLeiden" 
+	}
+) YIELD
+	preProcessingMillis,
+	computeMillis,
+	writeMillis,
+	postProcessingMillis,
+	nodePropertiesWritten,
+	communityCount,
+	ranLevels,
+	modularity,
+	modularities,
+	communityDistribution
+```
+
+| preProcessingMillis | computeMillis | writeMillis | postProcessingMillis | nodePropertiesWritten | communityCount | ranLevels | modularity         | modularities                                                                                          | communityDistribution                                                                               |
+|---------------------|---------------|-------------|----------------------|-----------------------|----------------|-----------|--------------------|-------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| 0                   | 419           | 158         | 11                   | 24042                 | 1317           | 5         | 0.5473613732553853 | [0.44177738280624534, 0.48671179504746837, 0.5396602348474452, 0.546111627553381, 0.5473613732553853] | {p99: 695, min: 1, max: 2271, mean: 18.255125284738043, p90: 3, p50: 1, p999: 1925, p95: 4, p75: 1} |
+
+Si osserva come il numero di community individuate dall'*algoritmo Leiden* siano molto simili al numero di community individuate dall'*algoritmo Louvain*.
+
+#### Campionamento delle community
+
+Come nei due casi precedenti, si effettua il campionamento delle community individuate, questa volta attraverso il parametro `communityLeiden`:
+
+```cypher
+MATCH (k:Keyword)
+RETURN collect(DISTINCT k.communityLeiden)
+```
+
+```text
+[270, 355, 613, 293, 139, 91, 98, 800, 120, 308, 53, 54, 55, 913, 93, 121, 115, 56, 57, 58, 59, 137, 60, 61, 87, 62, 173, 97, 1126, 63, 64, 65, 403, 318, 66, 67, 68, 69, 262, 70, 71, 72, 73, 74, 75, 76, 77, 891, 78, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 1077, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 880, 247, 248, 636, 249, 805, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 683, 469, 684, 685, 686, 687, 688, 689, 690, 691, 692, 693, 694, 695, 696, 697, 461, 698, 699, 700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 717, 652, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731, 732, 197, 733, 734, 735, 736, 737, 738, 739, 740, 741, 400, 742, 1079, 743, 744, 979, 567, 980, 146, 1282, 1283, 1284, 1285, 1286, 1287, 1288, 1289, 1290, 1291, 1292, 1293, 1294, 1295, 806, 1296, 1297, 1298, 1299, 1300, 1301, 1302, 1303, 1304, 1305, 1306, 1307, 1308, 459, 1309, 1310, 1311, 1312, 1313, 1314, 1315, 1316, 1317, 1318, 1184, 1319, 449, 450, 484, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 378, 755, 756, 757, 758, 759, 760, 632, 1014, 0, 1, 2, 1091, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 345, 15, 16, 17, 18, 19, 20, 21, 215, 22, 23, 24, 781, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 1333, 45, 46, 47, 48, 49, 50, 51, 52, 79, 80, 81, 82, 83, 84, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 862, 863, 864, 865, 866, 867, 868, 1092, 869, 870, 871, 872, 873, 874, 875, 876, 1211, 424, 1212, 1213, 1214, 570, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224, 1225, 1226, 1227, 444, 1228, 1229, 1230, 1231, 1232, 1233, 1234, 1235, 1236, 1237, 1238, 511, 1239, 1240, 1241, 1242, 1243, 1244, 1245, 1246, 1247, 1023, 618, 1248, 1249, 467, 1250, 1251, 929, 930, 931, 932, 933, 934, 935, 936, 937, 938, 470, 797, 939, 940, 941, 942, 943, 1042, 944, 945, 946, 947, 948, 949, 950, 951, 952, 953, 954, 955, 956, 957, 1120, 958, 959, 960, 961, 962, 963, 964, 965, 966, 967, 968, 969, 376, 970, 766, 971, 972, 973, 974, 975, 1034, 976, 977, 978, 213, 1165, 1166, 1167, 580, 1168, 1169, 1170, 286, 1171, 1172, 1173, 1015, 1016, 1017, 1018, 1019, 1020, 1021, 987, 1022, 189, 1024, 1025, 1026, 1027, 1028, 1029, 1030, 1031, 1032, 1033, 451, 820, 1035, 1036, 1037, 1038, 1039, 1040, 1041, 1043, 1044, 1045, 1046, 1047, 1048, 988, 1049, 1050, 1051, 986, 981, 899, 982, 983, 984, 985, 989, 990, 991, 992, 993, 994, 995, 996, 997, 998, 999, 1000, 1001, 314, 471, 1204, 1002, 166, 1003, 1004, 1005, 1006, ...]
+```
+
+Si campiona la prima community restituita:
+
+```cypher
+MATCH (k:Keyword { communityLeiden: 270 }) 
+RETURN k.name
+```
+
+```text
+["curve", "rad", "vertex-attribute", "quakeworld", "pizza", "ffxv", "voronoi_diagram" ...]
+```
+
+Si osserva che questa community è molto simile in termini di contenuti alla prima community individuata dall'*algoritmo Louvain*; essendo così tanto simili, non si è in grado di determinare qualitativamente se il rumore è inferiore o superiore.
+
+Si campiona quindi la seconda community:
+
+```cypher
+MATCH (k:Keyword { communityLeiden: 355 }) 
+RETURN k.name
+```
+
+```text
+["temporary-files", "recycle", "libfuse", "swarm", "createprocessexw", "time-tracker", "yaahc", ...]
+```
+
+Si osserva che questo campione contiene varie keyword relative a filesystem e chiamate di sistema; si individua pertanto la categoria "Foreign function interface :: Operating system calls".
+
+Non si notano variazioni qualitative nel rumore presente all'interno della categoria rispetto all'*algoritmo Louvain*.
+
 
 
 <!-- Collegamenti -->
@@ -540,3 +635,5 @@ Si osserva che questo campione è quasi interamente relativo allo sviluppo ed es
 [`gds.pageRank`]: https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/
 [Non essendo possibile creare grafi non diretti]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/#_relationship_orientation
 [`gds.labelPropagation`]: https://neo4j.com/docs/graph-data-science/current/algorithms/label-propagation/
+[`gds.louvain`]: https://neo4j.com/docs/graph-data-science/current/algorithms/louvain/
+[`gds.beta.leiden`]: https://neo4j.com/docs/graph-data-science/current/algorithms/leiden/
