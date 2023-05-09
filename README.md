@@ -47,6 +47,8 @@ Si sono effettuate ricerche di Graph Analytics sul database a grafo dell'indice 
 
 > Per informazioni su cosa è una crate in Rust, come è formata, o come è stato costruito il dataset utilizzato, si veda l'[introduzione della relazione del progetto a tema Neo4J].
 
+All'interno di questa relazione si esplorano due diverse *research questions*, marcate rispettivamente con i simboli 1️⃣ e 2️⃣.
+
 ### 1️⃣ Quali sono le crates più importanti dell'ecosistema Rust?
 
 Un'informazione utile da sapere per gli sviluppatori del linguaggio Rust e per i manutentori dell'indice [Crates.io] sono i nomi delle crate più importanti nell'indice.
@@ -86,6 +88,10 @@ Per effettuare il clone del DBMS, è stato sufficiente aprire il menu <kbd>··�
 ### Graph Data Science Library (2.3.3)
 
 Per installare la [Graph Data Science Library], si è cliccato sul nome del database clonato, si ha selezionato la scheda <kbd>Plugins</kbd>, aperto la sezione <kbd>Graph Data Science Library</kbd>, e infine premuto su <kbd>Install</kbd>.
+
+## Realizzazione
+
+
 
 
 <!-- Collegamenti -->
