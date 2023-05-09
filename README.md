@@ -49,7 +49,7 @@ Si sono effettuate ricerche di Graph Analytics sul database a grafo dell'indice 
 
 All'interno di questa relazione si esplorano due diverse *research questions*, marcate rispettivamente con i simboli 1️⃣ e 2️⃣.
 
-### 1️⃣ Quali sono le crates più importanti dell'ecosistema Rust?
+### 1️⃣ Quali sono le crate più importanti dell'ecosistema Rust?
 
 Un'informazione utile da sapere per gli sviluppatori del linguaggio Rust e per i manutentori dell'indice [Crates.io] sono i nomi delle crate più importanti nell'indice.
 
@@ -60,7 +60,7 @@ Alcuni esempi di casi in cui il dato di importanza delle crate potrebbe essere u
 
 Lo scopo di questa ricerca è quello di determinare, attraverso indagini sulla rete di dipendenze, un valore di importanza per ciascuna crate, e una classifica delle 10 crate più importanti dell'indice.
 
-### 2️⃣ Quali potrebbero essere altre *categories* utilizzabili per classificare crate?
+### 2️⃣ Quali potrebbero essere altre *category* utilizzabili per classificare crate?
 
 Affinchè le crate pubblicate possano essere utilizzate, non è sufficiente che esse vengano indicizzate: è necessario anche che gli sviluppatori che potrebbero farne uso vengano al corrente della loro esistenza.
 
@@ -103,7 +103,7 @@ Il Graph Catalog viene svuotato ad ogni nuovo avvio del DBMS Neo4J; si richiede 
 
 ### Modalità d'uso
 
-<!-- TODO -->
+
 
 ## Analisi
 
@@ -618,6 +618,46 @@ Si osserva che questo campione contiene varie keyword relative a filesystem e ch
 
 Non si notano variazioni qualitative nel rumore presente all'interno della categoria rispetto all'*algoritmo Louvain*.
 
+## Conclusioni
+
+### 1️⃣ Quali sono le crate più importanti dell'ecosistema Rust?
+
+Sia la *Degree Centrality* sia *PageRank* hanno dimostrato di essere misure efficaci nella determinazione dell'importanza delle crate.
+
+Tutte le crate restituite dagli algoritmi sono infatti crate ben conosciute all'interno dell'ecosistema Rust,  La classifica delle crate restituite dagli algoritmi infatti è abbastanza simile a quella delle crate con [il maggior numero di download negli ultimi 90 giorni]:
+
+| Crate         | Downloads recenti | Degree centrality | PageRank |
+|---------------|-------------------|-------------------|----------|
+| [`syn`](https://crates.io/crates/syn)           | **1°**            | >10°              | **7°**   |
+| [`proc-macro2`](https://crates.io/crates/proc-macro2)   | **2°**            | >10°              | **4°**   |
+| [`quote`](https://crates.io/crates/quote)         | **3°**            | >10°              | **3°**   |
+| [`libc`](https://crates.io/crates/libc)          | **4°**            | >10°              | >10°     |
+| [`cfg-if`](https://crates.io/crates/cfg-if)        | **5°**            | >10°              | >10°     |
+| [`base64`](https://crates.io/crates/base64)        | **6°**            | >10°              | >10°     |
+| [`serde`](https://crates.io/crates/serde)         | **7°**            | **1°**            | **2°**   |
+| [`unicode-ident`](https://crates.io/crates/unicode-ident) | **8°**            | >10°              | >10°     |
+| [`itoa`](https://crates.io/crates/itoa)          | **9°**            | >10°              | >10°     |
+| [`rand`](https://crates.io/crates/rand)          | 14°               | **6°**            | **6°**   |
+
+### 2️⃣ Quali potrebbero essere altre *category* utilizzabili per classificare crate?
+
+Gli algoritmi di *Label Propagation*, *Louvain* e *Leiden* si sono tutti rivelati ottime misure per raccogliere le crate in cluster analizzabili manualmente per determinare possibili *category* di crate; molte delle *category* individuate esistono infatti già nel [thesaurus] in forme simili:
+
+- la community "Internet" individuata è simile ai termini del thesaurus "API bindings" e "Web programming"
+- la community "Electronics and embedded programming" trova corrispondenza nella category già esistente "Embedded development"
+- la community "Videogames :: Emulation" corrisponde a quella realmente esistente "Emulators"
+- la community "Videogames :: Data structures" è assimilabile a quella più generica "Data structures"
+- la community "Videogames :: Graphics" è anch'essa assimilabile alla più generica "Graphics"
+- la community "Testing" corrisponde a "Development tools :: Testing"
+- infine, la community "Foreign function interface :: Operating system calls" corrisponde alle già esistenti "Development tools :: FFI" e "External FFI bindings"
+
+Campionando più community di quelle dimostrate in questa relazione, si riuscirebbero probabilmente a individuare category nuove non ancora presenti all'interno del [thesaurus] ufficiale.
+
+#### Louvain o Leiden?
+
+Non si è riusciti ad apprezzare differenze qualitative relative al rumore presente nelle community individuate da *Louvain* e *Leiden*.
+
+Effettuare un'indagine più approfondita potrebbe rivelare maggiori informazioni, ma ciò va ben oltre lo scopo di questa relazione.
 
 
 <!-- Collegamenti -->
@@ -637,3 +677,4 @@ Non si notano variazioni qualitative nel rumore presente all'interno della categ
 [`gds.labelPropagation`]: https://neo4j.com/docs/graph-data-science/current/algorithms/label-propagation/
 [`gds.louvain`]: https://neo4j.com/docs/graph-data-science/current/algorithms/louvain/
 [`gds.beta.leiden`]: https://neo4j.com/docs/graph-data-science/current/algorithms/leiden/
+[il maggior numero di download negli ultimi 90 giorni]: https://crates.io/search?sort=downloads
