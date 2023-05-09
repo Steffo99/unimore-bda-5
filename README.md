@@ -103,6 +103,17 @@ Il Graph Catalog viene svuotato ad ogni nuovo avvio del DBMS Neo4J; si richiede 
 
 ### Modalità d'uso
 
+La [Graph Data Science Library] è in grado di eseguire gli algoritmi in quattro diverse modalità:
+
+- ***Stream***, che restituisce i risultati dell'algoritmo come risultato della query
+- ***Stats***, che restituisce come risultato della query alcune statistiche sul risultato dell'algoritmo senza effettuare altro
+- ***Mutate***, che restituisce gli stessi valori di *Stats*, ma scrive anche il risultato dell'esecuzione sul *Graph Catalog*
+- ***Write***, che restituisce gli stessi valori di *Stats*, ma scrive anche il risultato dell'esecuzione direttamente sul grafo principale
+
+In questa relazione se ne utilizzano solamente due:
+
+- ***Stream*** per i risultati direttamente inseribili nella relazione
+- ***Write*** per i risultati che necessitano di ulteriore elaborazione prima di essere inseriti
 
 
 ## Analisi
