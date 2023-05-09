@@ -313,6 +313,125 @@ CALL gds.graph.project(
 |-----------|----------:|------------------:|--------------:|
 | "kwds" | 24042 | 1075328 | 197 |
 
+### 2️⃣ Label Propagation
+
+Per la classificazione delle keyword, si sceglie di usare inizialmente l'algoritmo di *Label Propagation* attraverso la funzione [`gds.labelPropagation`], in grado di identificare i singoli gruppi di nodi connessi densamente.
+
+#### Funzionamento dell'algoritmo 
+
+L'algoritmo iterativo di *Label Propagation*:
+
+1. inizializza tutti i nodi con un *label* univoco
+2. per ogni iterazione:
+	1. ogni nodo cambia il proprio *label* a quello posseduto dalla maggioranza dei propri vicini
+	2. in caso di pareggio tra due o più *label*, ne viene selezionato deterministicamente uno arbitrario
+	3. se nessun nodo ha cambiato *label* in questa iterazione, termina l'algoritmo
+	4. se è stato raggiunto il numero massimo consentito di iterazioni, termina l'algoritmo
+
+#### Esecuzione della query
+
+Come effettuato per ogni analisi, [si stimano] le risorse necessarie all'esecuzione dell'algoritmo:
+
+```cypher
+CALL gds.labelPropagation.write.estimate(
+	"kwds",
+	{
+		maxIterations: 1000,
+		writeProperty: "communityLabelPropagation" 
+	}
+) YIELD
+	nodeCount, 
+	relationshipCount, 
+	bytesMin, 
+	bytesMax, 
+	requiredMemory
+```
+
+| nodeCount | relationshipCount | bytesMin | bytesMax | requiredMemory |
+|-----------|-------------------|----------|----------|----------------|
+| 24042 | 1075328 | 194392 | 2291032 | "[189 KiB ... 2237 KiB]" |
+
+Si osserva che la quantità di memoria richiesta per l'esecuzione di questo algoritmo è variabile, ma comunque ben contenuta all'interno delle capacità di elaborazione di qualsiasi computer moderno.
+
+Si procede con l'esecuzione, questa volta in modalità `write`, in modo da poter effettuare in seguito query sul grafo per poter filtrare le keyword in base al label a loro assegnato, salvato nella proprietà `communityLabelPropagation`:
+
+```cypher
+CALL gds.labelPropagation.write(
+	"kwds",
+	{
+		maxIterations: 1000,
+		writeProperty: "communityLabelPropagation" 
+	}
+) YIELD
+	preProcessingMillis,
+	computeMillis,
+	writeMillis,
+	postProcessingMillis,
+	nodePropertiesWritten,
+	communityCount,
+	ranIterations,
+	didConverge,
+	communityDistribution
+```
+
+| preProcessingMillis | computeMillis | writeMillis | postProcessingMillis | nodePropertiesWritten | communityCount | ranIterations | didConverge | communityDistribution                                                                              |
+|---------------------|---------------|-------------|----------------------|-----------------------|----------------|---------------|-------------|----------------------------------------------------------------------------------------------------|
+| 1                   | 760           | 437         | 48                   | 24042                 | 2335           | 15            | true        | {p99: 15, min: 1, max: 17596, mean: 10.296359743040686, p90: 5, p50: 2, p999: 204, p95: 6, p75: 3} |
+
+Si osserva che l'algoritmo è giunto a convergenza.
+
+#### Campionamento dei label
+
+Si individuano gli identificatori dei label rimasti al termine dell'algoritmo:
+
+```cypher
+MATCH (k:Keyword)
+RETURN collect(DISTINCT k.communityLabelPropagation)
+```
+
+```
+[129222, 107005, 129156, 105304, 105306, 105308, 105324, 114977, 105426, 128851, 105318, 105320, 105322, 105323, 105327, 120684, 105332, 105334, 126341, 105368, 129138, 118398, 109137, 105355, 105356, 124270, 105604, 105365, 114271, 105373, 126354, 113751, 105424, 109885, 105448, 111400, 105451, 105457, 105749, 105576, 105470, 105472, 105511, 105485, 106226, 105501, 105504, 114487, 105509, 105513, 109628, 105527, 105525, 105534, 110378, 105537, 105541, 116341, 118387, 128674, 105552, 105553, 105559, 105572, 112844, 122130, 105600, 111384, 105607, 105609, 109518, 105675, 108964, 116475, 105883, 114270, 113524, 112223, 105652, 120156, 105940, 105659, 119274, 105664, 105783, 105671, 105677, 105679, 113515, 105686, 119232, 105699, 112831, 105835, 105867, 105745, 105754, 117345, 105763, 105853, 105768, 105770, 105773, 105777, 105792, 105798, 118282, 118449, 105802, 105805, 113140, 117045, 115822, 105820, 128736, 122383, 105830, 105839, 126956, 114811, 105846, 105857, 118830, 105989, 119738, 120607, 106049, 105885, 105892, 105983, 105996, 108047, 105910, 111844, 105913, 105916, 105919, 105921, 113265, 110097, 105944, 105953, 105956, 105960, 105962, 111858, 106574, 105971, 105976, 106164, 106005, 106009, 106011, 108487, 106018, 106162, 106038, 106028, 106132, 106032, 106151, 106143, 106044, 106056, 106191, 121385, 112153, 115790, 106079, 114003, 106101, 111372, 108095, 111111, 106223, 106535, 106701, 106121, 106129, 106130, 106145, 106155, 106208, 114594, 112437, 107874, 116998, 106195, 107502, 106201, 106212, 106213, 106216, 106218, 129061, 111023, 106232, 106235, 109977, 106246, 108654, 106262, 106267, 106276, 106271, 119497, 106288, 106583, 113328, 119823, 106314, 106315, 106596, 106326, 106482, 112396, 116625, 116405, 106341, 117254, 106346, 115131, 106350, 106635, 113349, 108271, 108001, 106377, 106382, 106385, 106388, 116190, 106667, 106393, 106552, 113087, 127965, 106553, 106424, 106442, 106431, 106432, 108202, 106466, 106460, 114620, 106470, 106633, 111166, 123807, 106497, 113604, 110939, 115840, 118735, 106510, 113627, 106516, 106527, 106520, 120189, 107189, 109061, 113230, 106564, 106825, 106578, 111423, 106595, 106599, 106608, 106673, 116760, 106617, 106625, 114580, 106639, 106927, 106648, 106649, 124291, 106665, 106672, 126561, 106687, 106814, 106688, 125017, 106843, 106708, 118834, 106746, 106720, 111170, 106727, 106767, 106739, 112901, 106742, 108121, 119305, 128824, 121482, 106777, 121663, 106792, 107534, 106806, 112496, 106976, 106993, 106824, 106830, 106944, 123867, 108072, 106872, 106838, 106851, 107223, 128486, 106859, 106862, 106863, 107057, 106884, 106890, 106894, 106895, 122399, 119794, 106915, 106917, 106931, 106932, 106936, 106942, 106945, 107092, 106967, 106968, 106987, 106974, 106992, 107598, 108539, 107008, 107131, 107013, 110952, 107021, 107022, 107027, 107031, 107033, 107156, 107853, 108953, 107068, 107073, 107074, 107075, 107081, 109528, 120025, 107111, 108583, 110250, 107115, 109543, 107163, 107188, 118416, 107329, 107966, 107204, 112071, 108126, 120289, 107976, 107230, 107246, 107235, 109164, 108368, 107291, 107281, 114867, 127281, 107671, 120350, 109436, 107351, 113414, 107304, 107306, 107308, 107314, 122721, 107320, 109364, 114767, 113506, 107364, 107379, 117294, 107389, 107392, 124187, 107402, 107406, 112493, 107408, 107417, 113076, 107434, 107440, 107581, 107448, 116485, 115100, 107460, 107637, 107498, 118926, 107643, 107512, 107515, 107742, 107633, 107620, 107549, 107552, 107647, 107557, 128348, 108981, 107572, 107594, 107596, 109372, 107609, 107619, 107765, 107626, 123070, 107631, 110484, 107641, 107644, 107654, 107691, 107658, 107923, 119806, 107900, 107679, 111500, 110088, 107690, 113194, 126067, 107701, 107710, 107711, 110015, 107726, 109718, 108220, 108937, 109328, 116791, 107758, 124785, 107764, 107767, 108176, 116538, 118184, 107836, 107806, 107810, 107930, 108868, 108002, 108469, 107850, 112020, 107885, 107894, 121088, 107910, 107947, 116481, 107944, 124095, 107962, 107960, 109152, 119162]
+```
+
+Si campiona un label per verificarne i contenuti:
+
+```cypher
+MATCH (k:Keyword { communityLabelPropagation: 129222 }) 
+RETURN k.name
+```
+
+```text
+["urbandictionary", "json2pdf", "flickrapi", "robotstxt", "bookmarking", "gameboy-advance", ...]
+```
+
+Si osserva che in questa query sono contenute molte keyword relative a Internet e servizi disponibili su esso, che potrebbero individuare quindi una categoria "Internet".
+
+Si campiona un altro label:
+
+```cypher
+MATCH (k:Keyword { communityLabelPropagation: 107005 }) 
+RETURN k.name
+```
+
+```text
+["temporary-files", "caches", "backups", "time-machine"]
+```
+
+Si osserva come questo label sia stato assegnato a un singolo nodo, e che quindi non fornisce informazioni particolarmente significative.
+
+Si campiona un terzo e ultimo label:
+
+```cypher
+MATCH (k:Keyword { communityLabelPropagation: 129156 }) 
+RETURN k.name
+```
+
+```text
+["max32660", "cortex-a", "jtag", "bitbang", "msp432", "capacitive", "stm32l5xx", "stm32f072", ...]
+```
+
+Si osserva un cluster molto ben definito di label relativi all'elettronica e alla programmazione embedded, che potrebbero individuare una categoria "Elettronica".
+
 
 <!-- Collegamenti -->
 
@@ -328,3 +447,4 @@ CALL gds.graph.project(
 [si stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
 [`gds.pageRank`]: https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/
 [Non essendo possibile creare grafi non diretti]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/#_relationship_orientation
+[`gds.labelPropagation`]: https://neo4j.com/docs/graph-data-science/current/algorithms/label-propagation/
