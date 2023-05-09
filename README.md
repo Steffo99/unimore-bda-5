@@ -101,6 +101,10 @@ Esistono vari modi per creare nuove proiezioni, ma all'interno di questa relazio
 
 Il Graph Catalog viene svuotato ad ogni nuovo avvio del DBMS Neo4J; si richiede pertanto di fare attenzione a non interrompere il processo del DBMS tra la creazione di una proiezione e l'esecuzione di un algoritmo su di essa.
 
+### Modalità d'uso
+
+<!-- TODO -->
+
 ## Analisi
 
 ### 1️⃣ Realizzazione della *Graph Projection*
@@ -156,22 +160,20 @@ CALL gds.graph.project.cypher(
 	"MATCH (a:Crate)-[:HAS_VERSION]->(v:Version) WITH a, v ORDER BY v.name DESC WITH a, collect(v.name)[0] AS vn MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate) RETURN id(a) AS source, id(c) AS target"
 ) YIELD
 	graphName,
-	nodeQuery,
 	nodeCount,
-	relationshipQuery,
 	relationshipCount,
 	projectMillis
 ```
 
-| graphName | nodeQuery | nodeCount | relationshipQuery | relationshipCount | projectMillis |
-|-----------|-----------|----------:|-------------------|------------------:|--------------:|
-| "deps" | "MATCH (a:Crate) RETURN id(a) AS id"	| 105287 | "MATCH (a:Crate)-[:HAS_VERSION]->(v:Version) WITH a, v ORDER BY v.name DESC WITH a, collect(v.name)[0] AS vn MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate) RETURN id(a) AS source, id(c) AS target" | 537154 | 8272 |
+| graphName | nodeCount | relationshipCount | projectMillis |
+|-----------|----------:|------------------:|--------------:|
+| "deps" | 105287 | 537154 | 8272 |
 
 ### 1️⃣ Degree Centrality
 
 Come misura di importanza più basilare, si decide di analizzare la *Degree Centrality*, ovvero il numero di archi entranti che ciascun nodo possiede, utilizzando la funzione [`gds.degree`] in modalità *Stream* per semplicità di operazione.
 
-Prima di eseguire l'algoritmo, si [stimano] le risorse computazionali richieste:
+Prima di eseguire l'algoritmo, [si stimano] le risorse computazionali richieste:
 
 ```cypher
 CALL gds.degree.stream.estimate(
@@ -192,7 +194,7 @@ CALL gds.degree.stream.estimate(
 |----------:|------------------:|---------:|---------:|---------------:|
 | 105287    | 537154            | 56       | 56       | "56 Bytes"     |
 
-Dato che la memoria richiesta è una quantità irrisoria, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
+Dato che la memoria richiesta stimata per l'esecuzione dell'algoritmo è pochissima, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
 
 ```cypher
 CALL gds.degree.stream(
@@ -224,6 +226,55 @@ LIMIT 10
 | [`futures`](https://crates.io/crates/futures)     |  7398.0 | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces." |
 | [`lazy_static`](https://crates.io/crates/lazy_static) |  7118.0 | "A macro for declaring lazily evaluated statics in Rust."                                                          |
 
+### 1️⃣ PageRank
+
+Per ottenere una misura di importanza più elaborata, si è scelto di utilizzare *PageRank*, algoritmo iterativo che dà maggiore rilevanza alle crate con pochi dipendenze e molti dipendenti.
+
+Ancora, prima di eseguire l'algoritmo [si stimano] le risorse richieste:
+
+```cypher
+CALL gds.pageRank.stream.estimate(
+	"deps"
+) YIELD
+	nodeCount, 
+	relationshipCount, 
+	bytesMin, 
+	bytesMax, 
+	requiredMemory
+```
+
+| nodeCount | relationshipCount | bytesMin | bytesMax | requiredMemory |
+|----------:|------------------:|---------:|---------:|---------------:|
+| 105287 | 537154 | 2540880 | 2540880 | "2481 KiB" |
+
+Si osserva come la quantità di memoria richiesta sia significativamente maggiore di quella richiesta dall'algoritmo di *Degree Centrality*, ma sempre una quantità accettabile con le risorse a disposizione dei computer moderni; dunque, si procede con l'esecuzione dell'algoritmo, sempre in modalità *Stream* per semplicità di uso:
+
+```cypher
+CALL gds.pageRank.stream(
+	"deps",
+	{}
+) YIELD
+	nodeId,
+	score
+MATCH (n)
+WHERE ID(n) = nodeId
+RETURN n.name AS name, score, n.description AS description
+ORDER BY score DESC
+LIMIT 10
+```
+
+| name                     |              score | description                                                                                                                          |
+|--------------------------|-------------------:|--------------------------------------------------------------------------------------------------------------------------------------|
+| [`serde_derive`](https://crates.io/crates/serde_derive)             |  2633.874125046063 | "Macros 1.1 implementation of #[derive(Serialize, Deserialize)]"                                                                       |
+| [`serde`](https://crates.io/crates/serde)                    |  2600.440123009119 | "A generic serialization/deserialization framework"                                                                                    |
+| [`quote`](https://crates.io/crates/quote)                    |  1753.385696376074 | "Quasi-quoting macro quote!(...)"                                                                                                      |
+| [`proc-macro2`](https://crates.io/crates/proc-macro2)              |  1547.702293697151 | "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case." |
+| [`trybuild`](https://crates.io/crates/trybuild)                 | 1452.1162055975733 | "Test harness for ui tests of compiler diagnostics"                                                                                    |
+| [`rand`](https://crates.io/crates/rand)                     | 1108.4777776061019 | "Random number generators and other randomness functionality."                                                                         |
+| [`syn`](https://crates.io/crates/syn)                      | 1047.3719317086066 | "Parser for Rust source code"                                                                                                          |
+| [`rustc-std-workspace-core`](https://crates.io/crates/rustc-std-workspace-core) |  997.5769831539209 | "Explicitly empty crate for rust-lang/rust integration"                                                                                |
+| [`serde_json`](https://crates.io/crates/serde_json)               |  885.3755595284102 | "A JSON serialization file format"                                                                                                     |
+| [`criterion`](https://crates.io/crates/criterion)                |  845.3984645777582 | "Statistics-driven micro-benchmarking library"                                                                                         |
 
 <!-- Collegamenti -->
 
@@ -236,4 +287,4 @@ LIMIT 10
 [`gds.graph.project.cypher`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/
 [`gds.graph.project`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project/
 [`gds.degree`]: https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/
-[stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
+[si stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
