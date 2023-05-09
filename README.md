@@ -58,7 +58,7 @@ Alcuni esempi di casi in cui il dato di importanza delle crate potrebbe essere u
 - determinare le crate più a rischio di supply chain attack
 - prioritizzare determinate crate nell'esecuzione di esperimenti con [crater]
 
-Lo scopo di questa ricerca è quello di determinare, attraverso indagini sulla rete di dipendenze, un valore di importanza per ciascuna crate, e una classifica delle 25 crate più importanti dell'indice.
+Lo scopo di questa ricerca è quello di determinare, attraverso indagini sulla rete di dipendenze, un valore di importanza per ciascuna crate, e una classifica delle 10 crate più importanti dell'indice.
 
 ### 2️⃣ Quali potrebbero essere altre *categories* utilizzabili per classificare crate?
 
@@ -116,17 +116,11 @@ MATCH (a:Crate)
 RETURN id(a) AS id
 ```
 
-```text
-╒═══╕
-│id │
-╞═══╡
-│0  │
-├───┤
-│1  │
-├───┤
-│2  │
-├───┤
-```
+| id |
+|---:|
+|  0 |
+|  1 | 
+|  2 |
 
 #### Determinazione degli archi partecipanti
 
@@ -145,17 +139,11 @@ MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate)
 RETURN id(a) AS source, id(c) AS target
 ```
 
-```text
-╒══════╤══════╕
-│source│target│
-╞══════╪══════╡
-│98825 │21067 │
-├──────┼──────┤
-│98825 │16957 │
-├──────┼──────┤
-│22273 │21318 │
-├──────┼──────┤
-```
+| source | target |
+|-------:|-------:|
+|  98825 |  21067 |
+|  98825 |  16957 | 
+|  22273 |  21318 |
 
 #### Creazione della graph projection
 
@@ -175,22 +163,66 @@ CALL gds.graph.project.cypher(
 	projectMillis
 ```
 
-```text
-╒═════════╤═════════════════════════╤═════════╤═════════════════════════╤═════════════════╤═════════════╕
-│graphName│nodeQuery                │nodeCount│relationshipQuery        │relationshipCount│projectMillis│
-╞═════════╪═════════════════════════╪═════════╪═════════════════════════╪═════════════════╪═════════════╡
-│"deps"   │"MATCH (a:Crate) RETURN i│105287   │"MATCH (a:Crate)-[:HAS_VE│537154           │8272         │
-│         │d(a) AS id"              │         │RSION]->(v:Version) WITH │                 │             │
-│         │                         │         │a, v ORDER BY v.name DESC│                 │             │
-│         │                         │         │ WITH a, collect(v.name)[│                 │             │
-│         │                         │         │0] AS vn MATCH (a:Crate)-│                 │             │
-│         │                         │         │[:HAS_VERSION]->(v:Versio│                 │             │
-│         │                         │         │n {name: vn})-[:DEPENDS_O│                 │             │
-│         │                         │         │N]->(c:Crate) RETURN id(a│                 │             │
-│         │                         │         │) AS source, id(c) AS tar│                 │             │
-│         │                         │         │get"                     │                 │             │
-└─────────┴─────────────────────────┴─────────┴─────────────────────────┴─────────────────┴─────────────┘
+| graphName | nodeQuery | nodeCount | relationshipQuery | relationshipCount | projectMillis |
+|-----------|-----------|----------:|-------------------|------------------:|--------------:|
+| "deps" | "MATCH (a:Crate) RETURN id(a) AS id"	| 105287 | "MATCH (a:Crate)-[:HAS_VERSION]->(v:Version) WITH a, v ORDER BY v.name DESC WITH a, collect(v.name)[0] AS vn MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate) RETURN id(a) AS source, id(c) AS target" | 537154 | 8272 |
+
+### 1️⃣ Degree Centrality
+
+Come misura di importanza più basilare, si decide di analizzare la *Degree Centrality*, ovvero il numero di archi entranti che ciascun nodo possiede, utilizzando la funzione [`gds.degree`] in modalità *Stream* per semplicità di operazione.
+
+Prima di eseguire l'algoritmo, si [stimano] le risorse computazionali richieste:
+
+```cypher
+CALL gds.degree.stream.estimate(
+	"deps",
+	{
+		// Di default l'algoritmo conteggia gli archi uscenti di ciascun nodo; con questo parametro, il comportamento si inverte
+		orientation: "REVERSE"
+	}
+) YIELD
+	nodeCount, 
+	relationshipCount, 
+	bytesMin, 
+	bytesMax, 
+	requiredMemory
 ```
+
+| nodeCount | relationshipCount | bytesMin | bytesMax | requiredMemory |
+|----------:|------------------:|---------:|---------:|---------------:|
+| 105287    | 537154            | 56       | 56       | "56 Bytes"     |
+
+Dato che la memoria richiesta è una quantità irrisoria, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
+
+```cypher
+CALL gds.degree.stream(
+	"deps",
+	{
+		// Di default l'algoritmo conteggia gli archi uscenti di ciascun nodo; con questo parametro, il comportamento si inverte
+		orientation: "REVERSE"
+	}
+) YIELD
+	nodeId,
+	score
+MATCH (n)
+WHERE ID(n) = nodeId
+RETURN n.name AS name, score, n.description AS description
+ORDER BY score DESC
+LIMIT 10
+```
+
+| name          |   score | description                                                                                                        |
+|---------------|--------:|--------------------------------------------------------------------------------------------------------------------|
+| "serde"       | 24612.0 | "A generic serialization/deserialization framework"                                                                |
+| "serde_json"  | 16365.0 | "A JSON serialization file format"                                                                                 |
+| "log"         | 12134.0 | "A lightweight logging facade for Rust"                                                                            |
+| "tokio"       | 11298.0 | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                      |
+| "clap"        | 10066.0 | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                       |
+| "rand"        |  9993.0 | "Random number generators and other randomness functionality."                                                     |
+| "thiserror"   |  8615.0 | "derive(Error)"                                                                                                    |
+| "anyhow"      |  8130.0 | "Flexible concrete Error type built on std::error::Error"                                                          |
+| "futures"     |  7398.0 | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces." |
+| "lazy_static" |  7118.0 | "A macro for declaring lazily evaluated statics in Rust."                                                          |
 
 
 <!-- Collegamenti -->
@@ -203,3 +235,5 @@ CALL gds.graph.project.cypher(
 [Graph Catalog]: https://neo4j.com/docs/graph-data-science/current/management-ops/graph-catalog-ops/
 [`gds.graph.project.cypher`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/
 [`gds.graph.project`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project/
+[`gds.degree`]: https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/
+[stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
