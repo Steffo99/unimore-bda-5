@@ -107,7 +107,7 @@ Il Graph Catalog viene svuotato ad ogni nuovo avvio del DBMS Neo4J; si richiede 
 
 ## Analisi
 
-### 1️⃣ Realizzazione della *Graph Projection*
+### 1️⃣ Realizzazione della *Graph Projection* Cypher
 
 Si utilizza un approccio bottom-up per la costruzione della graph projection delle crate e delle loro dipendenze.
 
@@ -116,6 +116,7 @@ Si utilizza un approccio bottom-up per la costruzione della graph projection del
 Si usa la seguente query triviale per determinare i codici identificativi dei nodi che partecipano all'algoritmo:
 
 ```cypher
+// Trova tutti gli id dei nodi con il label :Crate
 MATCH (a:Crate)
 RETURN id(a) AS id
 ```
@@ -149,7 +150,7 @@ RETURN id(a) AS source, id(c) AS target
 |  98825 |  16957 | 
 |  22273 |  21318 |
 
-#### Creazione della graph projection
+#### Creazione della *Graph Projection*
 
 Si combinano le due precedenti query in una chiamata a [`gds.graph.project.cypher`]:
 
@@ -276,6 +277,43 @@ LIMIT 10
 | [`serde_json`](https://crates.io/crates/serde_json)               |  885.3755595284102 | "A JSON serialization file format"                                                                                                     |
 | [`criterion`](https://crates.io/crates/criterion)                |  845.3984645777582 | "Statistics-driven micro-benchmarking library"                                                                                         |
 
+### 2️⃣ Realizzazione della *Graph Projection* nativa
+
+[Non essendo possibile creare grafi non diretti] con la funzione [`gds.graph.project.cypher`], si ricorre alla più efficiente ma complessa [`gds.graph.project`], che invece supporta la funzionalità specificando `orientation: "UNDIRECTED"`.
+
+#### Creazione di collegamenti aggiuntivi nel grafo
+
+[`gds.graph.project`] necessita che gli archi da proiettare siano già presenti all'interno del grafo principale; pertanto, si crea una nuova relazione `:IS_RELATED_TO` tra i nodi `:Keyword` presenti all'interno di ogni stessa crate:
+
+```cypher
+MATCH (a:Keyword)<-[:IS_TAGGED_WITH]-(c:Crate)-[:IS_TAGGED_WITH]->(b:Keyword)
+CREATE (a)-[:IS_RELATED_TO]->(b)
+```
+
+#### Creazione della *Graph Projection*
+
+Si effettua poi la chiamata a [`gds.graph.project`]:
+
+```cypher
+CALL gds.graph.project(
+	// Crea una proiezione chiamata "kwds"
+	"kwds",
+	// Contenente i nodi con il label :Keyword
+	"Keyword",
+	// E gli archi con il label :IS_RELATED_TO, considerandoli come non-diretti
+	{IS_RELATED_TO: {orientation: "UNDIRECTED"}}
+) YIELD
+	graphName,
+	nodeCount,
+	relationshipCount,
+	projectMillis
+```
+
+| graphName | nodeCount | relationshipCount | projectMillis |
+|-----------|----------:|------------------:|--------------:|
+| "kwds" | 24042 | 1075328 | 197 |
+
+
 <!-- Collegamenti -->
 
 [Crates.io]: https://crates.io/
@@ -289,3 +327,4 @@ LIMIT 10
 [`gds.degree`]: https://neo4j.com/docs/graph-data-science/current/algorithms/degree-centrality/
 [si stimano]: https://neo4j.com/docs/graph-data-science/current/common-usage/memory-estimation/
 [`gds.pageRank`]: https://neo4j.com/docs/graph-data-science/current/algorithms/page-rank/
+[Non essendo possibile creare grafi non diretti]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/#_relationship_orientation
