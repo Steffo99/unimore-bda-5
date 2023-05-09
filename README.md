@@ -89,9 +89,108 @@ Per effettuare il clone del DBMS, è stato sufficiente aprire il menu <kbd>··�
 
 Per installare la [Graph Data Science Library], si è cliccato sul nome del database clonato, si ha selezionato la scheda <kbd>Plugins</kbd>, aperto la sezione <kbd>Graph Data Science Library</kbd>, e infine premuto su <kbd>Install</kbd>.
 
-## Realizzazione
+## Concetti
 
+### Graph Catalog
 
+La [Graph Data Science Library] non è in grado di operare direttamente sul grafo, ma opera su delle proiezioni di parti di esso immagazzinate effimeramente all'interno di uno storage denominato [Graph Catalog], al fine di permettere agli algoritmi di operare con maggiore efficienza su un sottoinsieme mirato di elementi del grafo.
+
+Esistono vari modi per creare nuove proiezioni, ma all'interno di questa relazione ci si concentra su due di essi, ovvero le funzioni Cypher:
+- [`gds.graph.project.cypher`] (anche detta Cypher projection), che crea una proiezione a partire da due query Cypher, suggerita per il solo utilizzo in fase di sviluppo in quanto relativamente lenta
+- [`gds.graph.project`] (anche detta native projection), che crea una proiezione a partire dai label di nodi ed archi, operando direttamente sui dati grezzi del DBMS, ottenendo così un'efficienza significativamente maggiore e offrendo alcune funzionalità aggiuntive
+
+Il Graph Catalog viene svuotato ad ogni nuovo avvio del DBMS Neo4J; si richiede pertanto di fare attenzione a non interrompere il processo del DBMS tra la creazione di una proiezione e l'esecuzione di un algoritmo su di essa.
+
+## Analisi
+
+### 1️⃣ Realizzazione della *Graph Projection*
+
+Si utilizza un approccio bottom-up per la costruzione della graph projection delle crate e delle loro dipendenze.
+
+#### Determinazione dei nodi partecipanti
+
+Si usa la seguente query triviale per determinare i codici identificativi dei nodi che partecipano all'algoritmo:
+
+```cypher
+MATCH (a:Crate)
+RETURN id(a) AS id
+```
+
+```text
+╒═══╕
+│id │
+╞═══╡
+│0  │
+├───┤
+│1  │
+├───┤
+│2  │
+├───┤
+```
+
+#### Determinazione degli archi partecipanti
+
+Si costruisce invece una query più avanzata per interconnettere all'interno della proiezione i nodi in base alle dipendenze della loro versione più recente:
+
+```cypher
+// Trova tutte le versioni delle crate
+MATCH (a:Crate)-[:HAS_VERSION]->(v:Version)
+// Metti in ordine le versioni utilizzando l'ordine lessicografico inverso, che corrisponde all'ordine del versionamento semantico (semver) dalla versione più recente alla più vecchia
+WITH a, v ORDER BY v.name DESC
+// Per ogni crate, crea una lista ordinata contenente tutti i nomi delle relative versioni, ed estraine il primo, ottenendo così il nome della versione più recente
+WITH a, collect(v.name)[0] AS vn
+// Utilizzando il nome trovato, determina il nodo :Version corrispondente ad essa, e le crate che la contengono
+MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate)
+// Restituisci gli id dei nodi sorgente e destinazione
+RETURN id(a) AS source, id(c) AS target
+```
+
+```text
+╒══════╤══════╕
+│source│target│
+╞══════╪══════╡
+│98825 │21067 │
+├──────┼──────┤
+│98825 │16957 │
+├──────┼──────┤
+│22273 │21318 │
+├──────┼──────┤
+```
+
+#### Creazione della graph projection
+
+Si combinano le due precedenti query in una chiamata a [`gds.graph.project.cypher`]:
+
+```cypher
+CALL gds.graph.project.cypher(
+	"deps",
+	"MATCH (a:Crate) RETURN id(a) AS id",
+	"MATCH (a:Crate)-[:HAS_VERSION]->(v:Version) WITH a, v ORDER BY v.name DESC WITH a, collect(v.name)[0] AS vn MATCH (a:Crate)-[:HAS_VERSION]->(v:Version {name: vn})-[:DEPENDS_ON]->(c:Crate) RETURN id(a) AS source, id(c) AS target"
+) YIELD
+	graphName,
+	nodeQuery,
+	nodeCount,
+	relationshipQuery,
+	relationshipCount,
+	projectMillis
+```
+
+```text
+╒═════════╤═════════════════════════╤═════════╤═════════════════════════╤═════════════════╤═════════════╕
+│graphName│nodeQuery                │nodeCount│relationshipQuery        │relationshipCount│projectMillis│
+╞═════════╪═════════════════════════╪═════════╪═════════════════════════╪═════════════════╪═════════════╡
+│"deps"   │"MATCH (a:Crate) RETURN i│105287   │"MATCH (a:Crate)-[:HAS_VE│537154           │8272         │
+│         │d(a) AS id"              │         │RSION]->(v:Version) WITH │                 │             │
+│         │                         │         │a, v ORDER BY v.name DESC│                 │             │
+│         │                         │         │ WITH a, collect(v.name)[│                 │             │
+│         │                         │         │0] AS vn MATCH (a:Crate)-│                 │             │
+│         │                         │         │[:HAS_VERSION]->(v:Versio│                 │             │
+│         │                         │         │n {name: vn})-[:DEPENDS_O│                 │             │
+│         │                         │         │N]->(c:Crate) RETURN id(a│                 │             │
+│         │                         │         │) AS source, id(c) AS tar│                 │             │
+│         │                         │         │get"                     │                 │             │
+└─────────┴─────────────────────────┴─────────┴─────────────────────────┴─────────────────┴─────────────┘
+```
 
 
 <!-- Collegamenti -->
@@ -101,3 +200,6 @@ Per installare la [Graph Data Science Library], si è cliccato sul nome del data
 [thesaurus]: https://github.com/rust-lang/crates.io/blob/master/src/boot/categories.toml
 [crater]: https://github.com/rust-lang/crater
 [Graph Data Science Library]: https://neo4j.com/docs/graph-data-science/current/
+[Graph Catalog]: https://neo4j.com/docs/graph-data-science/current/management-ops/graph-catalog-ops/
+[`gds.graph.project.cypher`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project-cypher/
+[`gds.graph.project`]: https://neo4j.com/docs/graph-data-science/current/management-ops/projections/graph-project/
