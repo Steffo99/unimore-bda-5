@@ -68,6 +68,13 @@ A tale fine, [Crates.io] permette agli autori di ciascuna crate di specificare f
 
 Lo scopo di questa ricerca è quello di determinare, attraverso indagini sulle *keyword*, nuove possibili *category* da eventualmente introdurre nell'indice, ed eventualmente sperimentare un metodo innovativo per effettuare classificazione automatica delle crate.
 
+## Struttura del progetto
+
+Il progetto è organizzato nelle seguenti directory:
+
+- `README.md`: questo stesso file
+- `scripts/`: le query presenti in questa relazione come file separati, per una più facile esecuzione
+
 
 <!-- Collegamenti -->
 
