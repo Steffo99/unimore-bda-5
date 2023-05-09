@@ -75,6 +75,18 @@ Il progetto è organizzato nelle seguenti directory:
 - `README.md`: questo stesso file
 - `scripts/`: le query presenti in questa relazione come file separati, per una più facile esecuzione
 
+## Prerequisiti
+
+Si è scelto di utilizzare un clone del DBMS Neo4J gestito da Neo4J Desktop del progetto precedente.
+
+### Neo4J Desktop (1.5.7)
+
+Per effettuare il clone del DBMS, è stato sufficiente aprire il menu <kbd>···</kbd> del DBMS originale e cliccare l'opzione <kbd>Clone</kbd> presente al suo interno.
+
+### Graph Data Science Library (2.3.3)
+
+Per installare la [Graph Data Science Library], si è cliccato sul nome del database clonato, si ha selezionato la scheda <kbd>Plugins</kbd>, aperto la sezione <kbd>Graph Data Science Library</kbd>, e infine premuto su <kbd>Install</kbd>.
+
 
 <!-- Collegamenti -->
 
@@ -82,3 +94,4 @@ Il progetto è organizzato nelle seguenti directory:
 [introduzione della relazione del progetto a tema Neo4J]: https://github.com/Steffo99/unimore-bda-4#introduzione
 [thesaurus]: https://github.com/rust-lang/crates.io/blob/master/src/boot/categories.toml
 [crater]: https://github.com/rust-lang/crater
+[Graph Data Science Library]: https://neo4j.com/docs/graph-data-science/current/
