@@ -124,7 +124,7 @@ Si utilizza un approccio bottom-up per la costruzione della graph projection del
 
 #### Determinazione dei nodi partecipanti
 
-Si usa la seguente query triviale per determinare i codici identificativi dei nodi che partecipano all'algoritmo:
+Si usa la seguente query per determinare i codici identificativi dei nodi che partecipano all'algoritmo:
 
 ```cypher
 // Trova tutti gli id dei nodi con il label :Crate
@@ -183,7 +183,7 @@ CALL gds.graph.project.cypher(
 
 ### 1️⃣ Degree Centrality
 
-Come misura di importanza più basilare, si decide di analizzare la *Degree Centrality*, ovvero il numero di archi entranti che ciascun nodo possiede, utilizzando la funzione [`gds.degree`] in modalità *Stream* per semplicità di operazione.
+Per ottenere una misura di importanza relativamente basilare, si decide di analizzare la *Degree Centrality* di ciascun nodo, ovvero il numero di archi entranti che esso possiede, utilizzando la funzione [`gds.degree`] in modalità *Stream* per semplicità di operazione.
 
 Prima di eseguire l'algoritmo, [si stimano] le risorse computazionali richieste:
 
@@ -206,7 +206,7 @@ CALL gds.degree.stream.estimate(
 |----------:|------------------:|---------:|---------:|---------------:|
 | 105287    | 537154            | 56       | 56       | "56 Bytes"     |
 
-Dato che la memoria richiesta stimata per l'esecuzione dell'algoritmo è pochissima, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
+Dato che la memoria richiesta stimata per l'esecuzione dell'algoritmo è insignificante, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
 
 ```cypher
 CALL gds.degree.stream(
@@ -389,7 +389,7 @@ CALL gds.labelPropagation.write(
 |---------------------|---------------|-------------|----------------------|-----------------------|----------------|---------------|-------------|----------------------------------------------------------------------------------------------------|
 | 1                   | 760           | 437         | 48                   | 24042                 | 2335           | 15            | true        | {p99: 15, min: 1, max: 17596, mean: 10.296359743040686, p90: 5, p50: 2, p999: 204, p95: 6, p75: 3} |
 
-Si osserva che l'algoritmo è giunto a convergenza.
+Si osserva che l'algoritmo è riuscito a convergere a una soluzione.
 
 #### Campionamento delle community
 
