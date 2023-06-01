@@ -56,7 +56,7 @@ Un'informazione utile da sapere per gli sviluppatori del linguaggio Rust e per i
 Alcuni esempi di casi in cui il dato di importanza delle crate potrebbe essere utile sono:
 - selezionare anticipatamente le crate su cui effettuare caching più aggressivo
 - determinare le crate più a rischio di supply chain attack
-- prioritizzare determinate crate nell'esecuzione di esperimenti con [crater]
+- prioritizzare determinate crate da testare in caso di modifiche al compilatore
 
 Lo scopo di questa ricerca è quello di determinare, attraverso indagini sulla rete di dipendenze, un valore di importanza per ciascuna crate, e una classifica delle 10 crate più importanti dell'indice.
 
