@@ -110,11 +110,7 @@ La [Graph Data Science Library] è in grado di eseguire gli algoritmi in quattro
 - ***Mutate***, che restituisce gli stessi valori di *Stats*, ma scrive anche il risultato dell'esecuzione sul *Graph Catalog*
 - ***Write***, che restituisce gli stessi valori di *Stats*, ma scrive anche il risultato dell'esecuzione direttamente sul grafo principale
 
-In questa relazione se ne utilizzano solamente due:
-
-- ***Stream*** per i risultati direttamente inseribili nella relazione
-- ***Write*** per i risultati che necessitano di ulteriore elaborazione prima di essere inseriti
-
+In questa relazione si utilizza solamente la modalità *Write*, in quanto si vuole ispezionare successivamente i risultati ottenuti tramite ulteriori query.
 
 ## Analisi
 
@@ -183,16 +179,17 @@ CALL gds.graph.project.cypher(
 
 ### 1️⃣ Degree Centrality
 
-Per ottenere una misura di importanza relativamente basilare, si decide di analizzare la *Degree Centrality* di ciascun nodo, ovvero il numero di archi entranti che esso possiede, utilizzando la funzione [`gds.degree`] in modalità *Stream* per semplicità di operazione.
+Per ottenere una misura di importanza relativamente basilare, si decide di analizzare la *Degree Centrality* di ciascun nodo, ovvero il numero di archi entranti che esso possiede, utilizzando la funzione [`gds.degree`] in modalità *Write*, in modo da riuscire a recuperare successivamente i risultati.
 
 Prima di eseguire l'algoritmo, [si stimano] le risorse computazionali richieste:
 
 ```cypher
-CALL gds.degree.stream.estimate(
+CALL gds.degree.write.estimate(
 	"deps",
 	{
 		// Di default l'algoritmo conteggia gli archi uscenti di ciascun nodo; con questo parametro, il comportamento si inverte
-		orientation: "REVERSE"
+		orientation: "REVERSE",
+		writeProperty: "degreeCentrality"
 	}
 ) YIELD
 	nodeCount, 
@@ -206,37 +203,92 @@ CALL gds.degree.stream.estimate(
 |----------:|------------------:|---------:|---------:|---------------:|
 | 105287    | 537154            | 56       | 56       | "56 Bytes"     |
 
-Dato che la memoria richiesta stimata per l'esecuzione dell'algoritmo è insignificante, si procede immediatamente con l'esecuzione, e con il recupero delle 10 crate con più dipendenze entranti:
+Dato che la memoria richiesta stimata per l'esecuzione dell'algoritmo è insignificante, lo si esegue immediatamente:
 
 ```cypher
-CALL gds.degree.stream(
+CALL gds.degree.write(
 	"deps",
 	{
 		// Di default l'algoritmo conteggia gli archi uscenti di ciascun nodo; con questo parametro, il comportamento si inverte
-		orientation: "REVERSE"
+		orientation: "REVERSE",
+		writeProperty: "degreeCentrality"
 	}
 ) YIELD
-	nodeId,
-	score
-MATCH (n)
-WHERE ID(n) = nodeId
-RETURN n.name AS name, score, n.description AS description
-ORDER BY score DESC
-LIMIT 10
+	centralityDistribution,
+	preProcessingMillis,
+	computeMillis,
+	postProcessingMillis,
+	writeMillis,
+	nodePropertiesWritten,
+	configuration
 ```
 
-| name          |   score | description                                                                                                        |
-|---------------|--------:|--------------------------------------------------------------------------------------------------------------------|
-| [`serde`](https://crates.io/crates/serde)       | 24612.0 | "A generic serialization/deserialization framework"                                                                |
-| [`serde_json`](https://crates.io/crates/serde_json)  | 16365.0 | "A JSON serialization file format"                                                                                 |
-| [`log`](https://crates.io/crates/log)         | 12134.0 | "A lightweight logging facade for Rust"                                                                            |
-| [`tokio`](https://crates.io/crates/tokio)       | 11298.0 | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                      |
-| [`clap`](https://crates.io/crates/clap)        | 10066.0 | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                       |
-| [`rand`](https://crates.io/crates/rand)        |  9993.0 | "Random number generators and other randomness functionality."                                                     |
-| [`thiserror`](https://crates.io/crates/thiserror)   |  8615.0 | "derive(Error)"                                                                                                    |
-| [`anyhow`](https://crates.io/crates/anyhow)      |  8130.0 | "Flexible concrete Error type built on std::error::Error"                                                          |
-| [`futures`](https://crates.io/crates/futures)     |  7398.0 | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces." |
-| [`lazy_static`](https://crates.io/crates/lazy_static) |  7118.0 | "A macro for declaring lazily evaluated statics in Rust."                                                          |
+| centralityDistribution                                                                                                                                                             | preProcessingMillis | computeMillis | postProcessingMillis | writeMillis | nodePropertiesWritten | configuration                                                                                                                                                                                                                |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|---------------|----------------------|-------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| {p99: 41.00023651123047, min: 0.0, max: 24612.124992370605, mean: 5.101820968701407, p90: 3.0000076293945312, p50: 0.0, p999: 609.0038986206055, p95: 6.000022888183594, p75: 1.0} | 2                   | 194           | 341                  | 3038        | 105287                | {jobId: "ed7a37d0-296d-4ee3-9914-6a461ea819c5", orientation: "REVERSE", writeConcurrency: 4, writeProperty: "degreeCentrality", logProgress: true, nodeLabels: \["\*"\], sudo: false, relationshipTypes: \["\*"\], concurrency: 4} |
+
+Dal valore `centralityDistribution` restituito è già possibile osservare alcune statistiche sull'elaborazione effettuata:
+- il minimo (`min`) di dipendenti per crate è di `0`
+- la media (`mean`) di dipendenti per crate è di `5`
+- la mediana (cinquantesima percentile, `p50`) di dipendenti per crate è `0`
+- il terzo quartile (settantacinquesima percentile, `p75`) di dipendenti per crate è `1`
+- la novantesima percentile (`p90`) di dipendenti per crate è di `3`
+- la novantacinquesima percentile (`p95`) di dipendenti per crate è di `6`
+- la novantanovesima percentile (`p99`) di dipendenti per crate è di `41`
+- la 99.9ima percentile (`p999`) di dipendenti per crate è di `609`
+- il massimo (`max`) di dipendenti per crate è di `24612`
+
+Per verificare che l'algoritmo abbia funzionato correttamente, si recuperano le venticinque crate con valori più alti di `degreeCentrality`:
+
+```cypher
+MATCH (c:Crate)
+RETURN c.name, c.description, c.degreeCentrality
+ORDER BY c.degreeCentrality DESC 
+LIMIT 25
+```
+
+| c.name         | c.description                                                                                                                                   | c.degreeCentrality |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------:|
+| [serde](https://crates.io/crates/serde)        | "A generic serialization/deserialization framework"                                                                                             | 24612.0            |
+| [serde_json](https://crates.io/crates/serde_json)   | "A JSON serialization file format"                                                                                                              | 16365.0            |
+| [log](https://crates.io/crates/log)          | "A lightweight logging facade for Rust"                                                                                                         | 12134.0            |
+| [tokio](https://crates.io/crates/tokio)        | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                                                   | 11298.0            |
+| [clap](https://crates.io/crates/clap)         | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                                                    | 10066.0            |
+| [rand](https://crates.io/crates/rand)         | "Random number generators and other randomness functionality."                                                                                  | 9993.0             |
+| [thiserror](https://crates.io/crates/thiserror)    | "derive(Error)"                                                                                                                                 | 8615.0             |
+| [anyhow](https://crates.io/crates/anyhow)       | "Flexible concrete Error type built on std::error::Error"                                                                                       | 8130.0             |
+| [futures](https://crates.io/crates/futures)      | "An implementation of futures and streams featuring zero allocations,composability, and iterator-like interfaces."                              | 7398.0             |
+| [lazy_static](https://crates.io/crates/lazy_static)  | "A macro for declaring lazily evaluated statics in Rust."                                                                                       | 7118.0             |
+| [chrono](https://crates.io/crates/chrono)       | "Date and time library for Rust"                                                                                                                | 6708.0             |
+| [regex](https://crates.io/crates/regex)        | "An implementation of regular expressions for Rust. This implementation usesfinite automata and guarantees linear time matching on all inputs." | 6320.0             |
+| [syn](https://crates.io/crates/syn)          | "Parser for Rust source code"                                                                                                                   | 5495.0             |
+| [quote](https://crates.io/crates/quote)        | "Quasi-quoting macro quote!(...)"                                                                                                               | 5466.0             |
+| [serde_derive](https://crates.io/crates/serde_derive) | "Macros 1.1 implementation of #[derive(Serialize, Deserialize)]"                                                                                | 5364.0             |
+| [libc](https://crates.io/crates/libc)         | "Raw FFI bindings to platform libraries like libc."                                                                                             | 5287.0             |
+| [reqwest](https://crates.io/crates/reqwest)      | "higher level HTTP client library"                                                                                                              | 5261.0             |
+| [env_logger](https://crates.io/crates/env_logger)   | "A logging implementation for `log` which is configured via an environmentvariable."                                                            | 4912.0             |
+| [proc-macro2](https://crates.io/crates/proc-macro2)  | "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case."          | 4471.0             |
+| [bytes](https://crates.io/crates/bytes)        | "Types and traits for working with bytes"                                                                                                       | 4011.0             |
+| [url](https://crates.io/crates/url)          | "URL library for Rust, based on the WHATWG URL Standard"                                                                                        | 3748.0             |
+| [itertools](https://crates.io/crates/itertools)    | "Extra iterator adaptors, iterator methods, free functions, and macros."                                                                        | 3652.0             |
+| [async-trait](https://crates.io/crates/async-trait)  | "Type erasure for async trait methods"                                                                                                          | 3514.0             |
+| [criterion](https://crates.io/crates/criterion)    | "Statistics-driven micro-benchmarking library"                                                                                                  | 3303.0             |
+| [structopt](https://crates.io/crates/structopt)    | "Parse command line argument by defining a struct."                                                                                             | 3045.0             |
+
+Per preparare il database ad effettuare un confronto tra i vari metodi di ordinamento, si imposta su ogni nodo `:Crate` la proprietà `degreeCentralityPosition`, contenente la posizione nella "classifica" di crate ordinate per *Degree Centrality*:
+
+```cypher
+MATCH (c:Crate) 
+WITH c
+ORDER BY c.degreeCentrality DESC
+// Raccogli le crate in un singolo valore lista
+WITH collect(c) AS crates
+// Crea tanti valori numerici per ogni crate all'interno della lista
+UNWIND range(0, size(crates) - 1) AS position
+// Per ciascun valore numerico, imposta la proprietà della crate in quella posizione della lista al valore attuale
+SET (crates[position]).degreeCentralityPosition = position
+```
+
 
 ### 1️⃣ PageRank
 
@@ -245,8 +297,11 @@ Per ottenere una misura di importanza più elaborata, si è scelto di utilizzare
 Ancora, prima di eseguire l'algoritmo [si stimano] le risorse richieste:
 
 ```cypher
-CALL gds.pageRank.stream.estimate(
-	"deps"
+CALL gds.pageRank.write.estimate(
+	"deps",
+	{
+		writeProperty: "pageRank"
+	}
 ) YIELD
 	nodeCount, 
 	relationshipCount, 
@@ -259,34 +314,83 @@ CALL gds.pageRank.stream.estimate(
 |----------:|------------------:|---------:|---------:|---------------:|
 | 105287 | 537154 | 2540880 | 2540880 | "2481 KiB" |
 
-Si osserva come la quantità di memoria richiesta sia significativamente maggiore di quella richiesta dall'algoritmo di *Degree Centrality*, ma sempre una quantità accettabile con le risorse a disposizione dei computer moderni; dunque, si procede con l'esecuzione dell'algoritmo, sempre in modalità *Stream* per semplicità di uso:
+Si osserva come la quantità di memoria richiesta sia significativamente maggiore di quella richiesta dall'algoritmo di *Degree Centrality*, ma sempre una quantità accettabile con le risorse a disposizione dei computer moderni; dunque, si procede con l'esecuzione dell'algoritmo:
 
 ```cypher
-CALL gds.pageRank.stream(
+CALL gds.pageRank.write(
 	"deps",
-	{}
+	{
+		writeProperty: "pageRank"
+	}
 ) YIELD
-	nodeId,
-	score
-MATCH (n)
-WHERE ID(n) = nodeId
-RETURN n.name AS name, score, n.description AS description
-ORDER BY score DESC
-LIMIT 10
+	nodePropertiesWritten,
+	ranIterations,
+	didConverge,
+	preProcessingMillis,
+	computeMillis,
+	postProcessingMillis,
+	writeMillis,
+	centralityDistribution,
+	configuration
 ```
 
-| name                     |              score | description                                                                                                                          |
-|--------------------------|-------------------:|--------------------------------------------------------------------------------------------------------------------------------------|
-| [`serde_derive`](https://crates.io/crates/serde_derive)             |  2633.874125046063 | "Macros 1.1 implementation of #[derive(Serialize, Deserialize)]"                                                                       |
-| [`serde`](https://crates.io/crates/serde)                    |  2600.440123009119 | "A generic serialization/deserialization framework"                                                                                    |
-| [`quote`](https://crates.io/crates/quote)                    |  1753.385696376074 | "Quasi-quoting macro quote!(...)"                                                                                                      |
-| [`proc-macro2`](https://crates.io/crates/proc-macro2)              |  1547.702293697151 | "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case." |
-| [`trybuild`](https://crates.io/crates/trybuild)                 | 1452.1162055975733 | "Test harness for ui tests of compiler diagnostics"                                                                                    |
-| [`rand`](https://crates.io/crates/rand)                     | 1108.4777776061019 | "Random number generators and other randomness functionality."                                                                         |
-| [`syn`](https://crates.io/crates/syn)                      | 1047.3719317086066 | "Parser for Rust source code"                                                                                                          |
-| [`rustc-std-workspace-core`](https://crates.io/crates/rustc-std-workspace-core) |  997.5769831539209 | "Explicitly empty crate for rust-lang/rust integration"                                                                                |
-| [`serde_json`](https://crates.io/crates/serde_json)               |  885.3755595284102 | "A JSON serialization file format"                                                                                                     |
-| [`criterion`](https://crates.io/crates/criterion)                |  845.3984645777582 | "Statistics-driven micro-benchmarking library"                                                                                         |
+| nodePropertiesWritten | ranIterations | didConverge | preProcessingMillis | computeMillis | postProcessingMillis | writeMillis | centralityDistribution                                                                                                                                                                                                                  | configuration                                                                                           |                 |                             |                  |                   |                     |             |                     |                            |                   |
+|-----------------------|---------------|-------------|---------------------|---------------|----------------------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|-----------------|-----------------------------|------------------|-------------------|---------------------|-------------|---------------------|----------------------------|-------------------|
+| 105287                | 20            | false       | 0                   | 388           | 205                  | 1028        | {p99: 1.7772817611694336, min: 0.14999961853027344, max: 2633.8749990463257, mean: 0.5682340436878162, p90: 0.2225809097290039, p50: 0.14999961853027344, p999: 56.281737327575684, p95: 0.31362438201904297, p75: 0.16451454162597656} | {maxIterations: 20, writeConcurrency: 4, concurrency: 4, jobId: "1ada9849-5163-42a1-99d3-11b974e1f6d1"" | sourceNodes: [] | writeProperty: ""pageRank"" | scaler: ""NONE"" | logProgress: true | nodeLabels: \[""\*""\] | sudo: false | dampingFactor: 0.85 | relationshipTypes: \[""\*""\] | tolerance: 1e-7}" |
+
+Si osservano nel parametro `centralityDistribution` le stesse percentili già restituite dalla precedente query:
+- il punteggio PageRank minimo è `0.14`
+- il punteggio PageRank medio è `0.57`
+- il punteggio PageRank massimo è `2633.87`
+- la mediana è `0.14`
+- etc.
+
+Per verificare che l'algoritmo abbia funzionato correttamente, si recuperano le venticinque crate con valori più alti di `pageRank`:
+
+```cypher
+MATCH (c:Crate)
+RETURN c.name, c.description, c.pageRank
+ORDER BY c.pageRank DESC 
+LIMIT 25
+```
+| c.name                     | c.description                                                                                                                                                                        | c.pageRank         |
+|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| [serde_derive](https://crates.io/crates/serde_derive) |             | "Macros 1.1 implementation of #[derive(Serialize, Deserialize)]"                                                                                                                     | 2633.874125046061  |
+| [serde](https://crates.io/crates/serde) |                    | "A generic serialization/deserialization framework"                                                                                                                                  | 2600.440123009117  |
+| [quote](https://crates.io/crates/quote) |                    | "Quasi-quoting macro quote!(...)"                                                                                                                                                    | 1753.3856963760738 |
+| [proc-macro2](https://crates.io/crates/proc-macro2) |              | "A substitute implementation of the compiler's `proc_macro` API to decouple token-based libraries from the procedural macro use case."                                               | 1547.7022936971498 |
+| [trybuild](https://crates.io/crates/trybuild) |                 | "Test harness for ui tests of compiler diagnostics"                                                                                                                                  | 1452.1162055975724 |
+| [rand](https://crates.io/crates/rand) |                     | "Random number generators and other randomness functionality."                                                                                                                       | 1108.4777776060996 |
+| [syn](https://crates.io/crates/syn) |                      | "Parser for Rust source code"                                                                                                                                                        | 1047.3719317086059 |
+| [rustc-std-workspace-core](https://crates.io/crates/rustc-std-workspace-core) | | "Explicitly empty crate for rust-lang/rust integration"                                                                                                                              | 997.5769831539204  |
+| [serde_json](https://crates.io/crates/serde_json) |               | "A JSON serialization file format"                                                                                                                                                   | 885.3755595284099  |
+| [criterion](https://crates.io/crates/criterion) |                | "Statistics-driven micro-benchmarking library"                                                                                                                                       | 845.3984645777579  |
+| [libc](https://crates.io/crates/libc) |                     | "Raw FFI bindings to platform libraries like libc."                                                                                                                                  | 808.9144700265439  |
+| [rustversion](https://crates.io/crates/rustversion) |              | "Conditional compilation according to rustc compiler version"                                                                                                                        | 785.8724508729044  |
+| [lazy_static](https://crates.io/crates/lazy_static) |              | "A macro for declaring lazily evaluated statics in Rust."                                                                                                                            | 708.9297457284239  |
+| [unicode-xid](https://crates.io/crates/unicode-xid) |              | "Determine whether characters have the XID_Startor XID_Continue properties according toUnicode Standard Annex #31."                                                                  | 674.7055991635623  |
+| [log](https://crates.io/crates/log) |                      | "A lightweight logging facade for Rust"                                                                                                                                              | 606.2087374708564  |
+| [doc-comment](https://crates.io/crates/doc-comment) |              | "Macro to generate doc comments"                                                                                                                                                     | 584.0581095948327  |
+| [winapi](https://crates.io/crates/winapi) |                   | "Raw FFI bindings for all of Windows API."                                                                                                                                           | 583.2378424756424  |
+| [regex](https://crates.io/crates/regex) |                    | "An implementation of regular expressions for Rust. This implementation usesfinite automata and guarantees linear time matching on all inputs."                                      | 371.30425142334036 |
+| [quickcheck](https://crates.io/crates/quickcheck) |               | "Automatic property based testing with shrinking."                                                                                                                                   | 363.2685687604089  |
+| [termcolor](https://crates.io/crates/termcolor) |                | "A simple cross platform library for writing colored text to a terminal."                                                                                                            | 325.9086283505512  |
+| [spin](https://crates.io/crates/spin) |                     | "Spin-based synchronization primitives"                                                                                                                                              | 318.4314085948815  |
+| [cfg-if](https://crates.io/crates/cfg-if) |                   | "A macro to ergonomically define an item depending on a large number of #[cfg]parameters. Structured like an if-else chain, the first matching branch is theitem that gets emitted." | 316.12379240263994 |
+| [winapi-util](https://crates.io/crates/winapi-util) |              | "A dumping ground for high level safe wrappers over winapi."                                                                                                                         | 315.8947682994466  |
+| [clap](https://crates.io/crates/clap) |                     | "A simple to use, efficient, and full-featured Command Line Argument Parser"                                                                                                         | 288.0085754382288  |
+| [tokio](https://crates.io/crates/tokio) |                    | "An event-driven, non-blocking I/O platform for writing asynchronous I/Obacked applications."                                                                                        | 282.1129077269715  |
+
+Sempre per preparare il database a un confronto (effettuato nelle conclusioni), si imposta su ogni nodo `:Crate` la proprietà `pageRankPosition`:
+
+```cypher
+MATCH (c:Crate) 
+WITH c
+ORDER BY c.pageRank DESC
+WITH collect(c) AS crates
+UNWIND range(0, size(crates) - 1) AS position
+SET (crates[position]).pageRankPosition = position
+```
 
 ### 2️⃣ Realizzazione della *Graph Projection* nativa
 
@@ -633,26 +737,132 @@ Non si notano variazioni qualitative nel rumore presente all'interno della categ
 
 ### 1️⃣ Quali sono le crate più importanti dell'ecosistema Rust?
 
-Sia la *Degree Centrality* sia *PageRank* hanno dimostrato di essere misure efficaci nella determinazione dell'importanza delle crate.
+Sia la *Degree Centrality* sia *PageRank* sembrano essere misure efficaci nella determinazione dell'importanza delle crate.
 
-Tutte le crate restituite dagli algoritmi sono infatti crate ben conosciute all'interno dell'ecosistema Rust,  La classifica delle crate restituite dagli algoritmi infatti è abbastanza simile a quella delle crate con [il maggior numero di download negli ultimi 90 giorni]:
+#### Numero di downloads
 
-| Crate         | Downloads recenti | Degree centrality | PageRank |
-|---------------|-------------------|-------------------|----------|
-| [`syn`](https://crates.io/crates/syn)           | **1°**            | >10°              | **7°**   |
-| [`proc-macro2`](https://crates.io/crates/proc-macro2)   | **2°**            | >10°              | **4°**   |
-| [`quote`](https://crates.io/crates/quote)         | **3°**            | >10°              | **3°**   |
-| [`libc`](https://crates.io/crates/libc)          | **4°**            | >10°              | >10°     |
-| [`cfg-if`](https://crates.io/crates/cfg-if)        | **5°**            | >10°              | >10°     |
-| [`base64`](https://crates.io/crates/base64)        | **6°**            | >10°              | >10°     |
-| [`serde`](https://crates.io/crates/serde)         | **7°**            | **1°**            | **2°**   |
-| [`unicode-ident`](https://crates.io/crates/unicode-ident) | **8°**            | >10°              | >10°     |
-| [`itoa`](https://crates.io/crates/itoa)          | **9°**            | >10°              | >10°     |
-| [`rand`](https://crates.io/crates/rand)          | 14°               | **6°**            | **6°**   |
+Attualmente, la misura di popolarità più comunemente usata è [il numero di download negli ultimi 90 giorni]; per effettuare confronti con essa, si aggiunge ai nodi `:Crate` la proprietà `downloadsPosition`:
+
+```cypher
+MATCH (c:Crate) 
+WITH c
+ORDER BY c.downloads DESC
+WITH collect(c) AS crates
+UNWIND range(0, size(crates) - 1) AS position
+SET (crates[position]).downloadsPosition = position
+```
+
+#### Top 10
+
+Si mettono a confronto le prime dieci crate nella "classifica" di ciascuna misura con le loro posizioni nelle classifiche delle altre due:
+
+```cypher
+MATCH (c:Crate) 
+RETURN c.name, c.downloadsPosition, c.degreeCentralityPosition, c.pageRankPosition 
+ORDER BY c.downloadsPosition 
+LIMIT 10
+```
+
+| c.name        | c.downloadsPosition | c.degreeCentralityPosition | c.pageRankPosition |
+|---------------|--------------------:|---------------------------:|-------------------:|
+| "syn"         | 0                   | 12                         | 6                  |
+| "rand"        | 1                   | 5                          | 5                  |
+| "libc"        | 2                   | 15                         | 10                 |
+| "rand_core"   | 3                   | 101                        | 34                 |
+| "quote"       | 4                   | 13                         | 2                  |
+| "cfg-if"      | 5                   | 60                         | 21                 |
+| "proc-macro2" | 6                   | 18                         | 3                  |
+| "serde"       | 7                   | 0                          | 1                  |
+| "autocfg"     | 8                   | 728                        | 42                 |
+| "itoa"        | 9                   | 375                        | 69                 |
+
+```cypher
+MATCH (c:Crate) 
+RETURN c.name, c.downloadsPosition, c.degreeCentralityPosition, c.pageRankPosition 
+ORDER BY c.degreeCentralityPosition 
+LIMIT 10
+```
+
+| c.name        | c.downloadsPosition | c.degreeCentralityPosition | c.pageRankPosition |
+|---------------|--------------------:|---------------------------:|-------------------:|
+| "serde"       | 7                   | 0                          | 1                  |
+| "serde_json"  | 18                  | 1                          | 8                  |
+| "log"         | 13                  | 2                          | 14                 |
+| "tokio"       | 56                  | 3                          | 24                 |
+| "clap"        | 35                  | 4                          | 23                 |
+| "rand"        | 1                   | 5                          | 5                  |
+| "thiserror"   | 64                  | 6                          | 41                 |
+| "anyhow"      | 75                  | 7                          | 28                 |
+| "futures"     | 62                  | 8                          | 35                 |
+| "lazy_static" | 15                  | 9                          | 12                 |
+
+```cypher
+MATCH (c:Crate) 
+RETURN c.name, c.downloadsPosition, c.degreeCentralityPosition, c.pageRankPosition 
+ORDER BY c.pageRankPosition 
+LIMIT 10
+```
+
+| c.name                     | c.downloadsPosition | c.degreeCentralityPosition | c.pageRankPosition |
+|----------------------------|--------------------:|---------------------------:|-------------------:|
+| "serde_derive"             | 16                  | 14                         | 0                  |
+| "serde"                    | 7                   | 0                          | 1                  |
+| "quote"                    | 4                   | 13                         | 2                  |
+| "proc-macro2"              | 6                   | 18                         | 3                  |
+| "trybuild"                 | 826                 | 96                         | 4                  |
+| "rand"                     | 1                   | 5                          | 5                  |
+| "syn"                      | 0                   | 12                         | 6                  |
+| "rustc-std-workspace-core" | 2738                | 1231                       | 7                  |
+| "serde_json"               | 18                  | 1                          | 8                  |
+| "criterion"                | 353                 | 23                         | 9                  |
+
+#### Coefficiente di correlazione per ranghi di Spearman
+
+Si calcola il coefficiente di correlazione per ranghi di Spearman tra le misure proposte e quella "ufficiale":
+
+```cypher
+MATCH (a:Crate)
+WITH a, (a.downloadsPosition - a.degreeCentralityPosition) as df
+WITH sum(df * df) as s, count(a) as c
+WITH toFloat(s) as s, toFloat(c) as c
+RETURN s*6 / (c*((c*c) - 1))
+```
+
+```
+0.5307312103396986
+```
+
+```cypher
+MATCH (a:Crate)
+WITH a, (a.pageRankPosition - a.downloadsPosition) as df
+WITH sum(df * df) as s, count(a) as c
+WITH toFloat(s) as s, toFloat(c) as c
+RETURN s*6 / (c*((c*c) - 1))
+```
+
+```
+0.5354846552781645
+```
+
+```cypher
+MATCH (a:Crate)
+WITH a, (a.pageRankPosition - a.degreeCentralityPosition) as df
+WITH sum(df * df) as s, count(a) as c
+WITH toFloat(s) as s, toFloat(c) as c
+RETURN s*6 / (c*((c*c) - 1))
+```
+
+```
+0.30165397372361336
+```
 
 ### 2️⃣ Quali potrebbero essere altre *category* utilizzabili per classificare crate?
 
-Gli algoritmi di *Label Propagation*, *Louvain* e *Leiden* si sono tutti rivelati ottime misure per raccogliere le crate in cluster analizzabili manualmente per determinare possibili *category* di crate; molte delle *category* individuate esistono infatti già nel [thesaurus] in forme simili:
+Gli algoritmi di *Label Propagation*, *Louvain* e *Leiden* sembrano essere ottime misure per raccogliere le crate in cluster analizzabili manualmente per determinare possibili *category* di crate.
+
+#### Confronto con il thesaurus ufficiale
+
+Molte delle *category* individuate esistono già nel [thesaurus ufficiale] in forme simili:
 
 - la community "Internet" individuata è simile ai termini del thesaurus "API bindings" e "Web programming"
 - la community "Electronics and embedded programming" trova corrispondenza nella category già esistente "Embedded development"
@@ -662,20 +872,20 @@ Gli algoritmi di *Label Propagation*, *Louvain* e *Leiden* si sono tutti rivelat
 - la community "Testing" corrisponde a "Development tools :: Testing"
 - infine, la community "Foreign function interface :: Operating system calls" corrisponde alle già esistenti "Development tools :: FFI" e "External FFI bindings"
 
-Campionando più community di quelle dimostrate in questa relazione, si riuscirebbero probabilmente a individuare category nuove non ancora presenti all'interno del [thesaurus] ufficiale.
+Campionando più community di quelle dimostrate in questa relazione, si riuscirebbero probabilmente a individuare category nuove non ancora presenti.
 
 #### Louvain o Leiden?
 
 Non si è riusciti ad apprezzare differenze qualitative relative al rumore presente nelle community individuate da *Louvain* e *Leiden*.
 
-Effettuare un'indagine più approfondita potrebbe rivelare maggiori informazioni, ma ciò va ben oltre lo scopo di questa relazione.
+Effettuare un'indagine più approfondita potrebbe rivelare maggiori informazioni, ma ciò va oltre lo scopo di questa relazione.
 
 
 <!-- Collegamenti -->
 
 [Crates.io]: https://crates.io/
 [introduzione della relazione del progetto a tema Neo4J]: https://github.com/Steffo99/unimore-bda-4#introduzione
-[thesaurus]: https://github.com/rust-lang/crates.io/blob/master/src/boot/categories.toml
+[thesaurus ufficiale]: https://github.com/rust-lang/crates.io/blob/master/src/boot/categories.toml
 [crater]: https://github.com/rust-lang/crater
 [Graph Data Science Library]: https://neo4j.com/docs/graph-data-science/current/
 [Graph Catalog]: https://neo4j.com/docs/graph-data-science/current/management-ops/graph-catalog-ops/
@@ -688,4 +898,4 @@ Effettuare un'indagine più approfondita potrebbe rivelare maggiori informazioni
 [`gds.labelPropagation`]: https://neo4j.com/docs/graph-data-science/current/algorithms/label-propagation/
 [`gds.louvain`]: https://neo4j.com/docs/graph-data-science/current/algorithms/louvain/
 [`gds.beta.leiden`]: https://neo4j.com/docs/graph-data-science/current/algorithms/leiden/
-[il maggior numero di download negli ultimi 90 giorni]: https://crates.io/search?sort=downloads
+[il numero di download negli ultimi 90 giorni]: https://crates.io/search?sort=downloads
